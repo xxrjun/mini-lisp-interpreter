@@ -42,8 +42,3 @@
 ## References
 
 - [LISP - Wikipedia](https://en.wikipedia.org/wiki/Lisp_%28programming_language%29)
-
-> Should remove this section before submitting the project
-
-- [eugenechouy/mini-LISP](https://github.com/eugenechouy/mini-LISP)
-- [seanwu1105/mini-lisp-interpreter](https://github.com/seanwu1105/mini-lisp-interpreter)
