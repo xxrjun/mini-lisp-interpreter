@@ -1,0 +1,60 @@
+= Mini-LISP Interpreter
+xxrjun <https://github.com/xxrjun>
+:icons: font
+:toc:
+:toclevels: 3
+:sectnums:
+:sectnumlevels: 5
+:source-highlighter: rouge
+:url-repo: https://github.com/xxrjun/mini-lisp-interpreter
+
+[quote, "NCU CSIE Compiler 2023 Fall Final Project"]
+____
+Final project for the Compiler course at National Central University.
+____
+
+== Documents
+
+* link:./docs/Compiler%20Final%20Project.pdf[Compiler Final Project Requirements]
+* link:./docs/MiniLisp.pdf[Mini-LISP Language Specification]
+
+== Usage
+
+_TODO: Write usage here_
+
+== Features
+
+=== Basic Features
+
+[NOTE]
+====
+Features 1-4 must be finished before other features.
+====
+
+[options="header"]
+|======================
+| Feature | Description | Points | Done
+| Syntax Validation | Print "syntax error" when parsing invalid syntax | 10 |   
+| Print | Implement `print-num` statement | 10 |   
+| Numerical Operations | Implement all numerical operations | 25 |  
+| Logical Operations | Implement all logical operations | 25 |  
+| if Expression | Implement if expression | 8 |   
+| Variable Definition | Able to define a variable | 8 |  
+| Function | Able to declare and call an anonymous function | 8 |  
+| Named Function | Able to declare and call a named function | 6 |  
+|======================
+
+=== Bonus Features
+
+[options="header"]
+|======================
+| Feature | Description | Points | Done
+| Recursion | Support recursive function call | 5 |   
+| Type Checking | Print error messages for type errors | 5 |   
+| Nested Function | Nested function (link:https://en.wikipedia.org/wiki/Scope_(computer_science)#Lexical_scope_vs._dynamic_scope[static scope]) | 5 |  
+| First-class Function | Able to pass functions, support closure | 5 |  
+|======================
+
+== References
+
+* link:https://en.wikipedia.org/wiki/Lisp_%28programming_language%29[LISP - Wikipedia]
