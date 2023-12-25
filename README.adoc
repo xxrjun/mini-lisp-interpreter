@@ -7,6 +7,7 @@ xxrjun <https://github.com/xxrjun>
 :sectnumlevels: 5
 :source-highlighter: rouge
 :url-repo: https://github.com/xxrjun/mini-lisp-interpreter
+:important-caption: :exclamation:
 
 [quote]
 ____
@@ -20,42 +21,14 @@ ____
 
 == Developement
 
-* *Operating System*: Windows 10
-* *Language*: C++14, Lex, Yacc
-
-== Usage
-
-// TODO
-
-=== Windows
-
-[source, bash]
-----
-
-----
-
-=== Mac & Linux
-
-[source, bash]
-----
-
-----
-
-=== Run Test
-
-[source, bash]
-----
-./run_test.sh
-----
+* *Operating System*: Windows 11
+* *Language*: C++14, Lex, Yacc (Bison)
 
 == Features
 
 === Basic Features
 
-[NOTE]
-====
-Features 1-4 must be finished before other features.
-====
+IMPORTANT: Features 1-4 must be finished before other features.
 
 .Basic Features
 [options="header, valign="middle", cols="25%,60%,^5%,^5%,^5%"]
@@ -147,6 +120,32 @@ Public test case points : Hidden test case points = 80% : 20% (pass partial get 
 |=======================
 
 Public test case points : Hidden test case points = 0% : 100% (pass all get all)
+
+== Usage
+
+// TODO
+
+=== Windows
+
+[source, bash]
+----
+
+----
+
+=== Mac & Linux
+
+[source, bash]
+----
+
+----
+
+=== Run Test
+
+[source, bash]
+----
+./run_test.sh
+----
+
 
 == References
 
