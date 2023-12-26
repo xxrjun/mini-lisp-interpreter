@@ -45,6 +45,9 @@
             ast_or, // 10
             ast_not,
 
+            /**
+             * types 
+             */
             ast_boolean,
             ast_number,
             ast_function,
@@ -63,6 +66,14 @@
              */
             ast_define,
             ast_id, // 20
+
+            /**
+             * functions
+             */
+            ast_function_call,
+            ast_funtiona_params,
+            ast_function_name,
+            ast_function_body,
 
             /** 
              * others
@@ -111,7 +122,10 @@
     ASTNode* new_node_id(char* sval, ASTNode* left, ASTNode* right);
     void free_node(ASTNode* node);
     void traverse_ast(ASTNode* root, ASTType prev_type);
+
+    /* Helper functions to make the code more readable */
     void handle_arithmetic_operation(ASTNode* node, ASTType operation);
+    void handle_logical_operation(ASTNode* node, ASTType operation);
 
     /* Type checking */
     // it could match the symbol type of ast_id (variable) to the ASTType (ast_number, ast_boolean, ast_function)
@@ -286,6 +300,13 @@ else_exp    : exp
 
 %%
 
+/**
+ * ==================================================================================================
+ *
+ * Abstract Syntax Tree (AST)
+ *
+ * ==================================================================================================   
+ */
 
 ASTNode* new_node(ASTType type, ASTNode* left, ASTNode* right){
     ASTNode* node = (ASTNode*)malloc(sizeof(struct ASTNode));
@@ -399,45 +420,18 @@ void traverse_ast(ASTNode* node, ASTType prev_type){
          * ----------------------------- Logical operations -----------------------------
          */
         case ast_and:
-            if(DEBUG_MODE){
-                printf("AST AND\n");
-            }
-
-            general_type_checking(node->left, ast_boolean);
-            general_type_checking(node->right, ast_boolean);
-
-            node->value.bval = node->left->value.bval && node->right->value.bval;
-            node->type = ast_boolean;
-            break;
-        
         case ast_or:
-            if(DEBUG_MODE){
-                printf("AST OR\n");
-            }
-
-            general_type_checking(node->left, ast_boolean);
-            general_type_checking(node->right, ast_boolean);
-
-            node->value.bval = node->left->value.bval || node->right->value.bval;
-            node->type = ast_boolean;
-            break;
-        
         case ast_not:     
             if(DEBUG_MODE){
-                printf("AST NOT\n");
+                printf("AST OPERATION (AND/OR/NOT)\n");
             }
 
-            general_type_checking(node->left, ast_boolean);
-            general_type_checking(node->right, ast_boolean);
-
-            node->value.bval = !node->left->value.bval;
-            node->type = ast_boolean;
+            handle_logical_operation(node, node->type);
             break;
-
 
 
         /**
-         * ----------------------------- Pinrt Functions -----------------------------
+         * ----------------------------- Print Functions -----------------------------
          */
         case ast_print_bool:
             if(DEBUG_MODE){
@@ -530,6 +524,8 @@ void traverse_ast(ASTNode* node, ASTType prev_type){
                 printf("VARIABLE NAME: %s\n", node->left->value.sval);
                 printf("VARIABLE VALUE: %d\n", node->right->value.ival);
             }
+
+            // TODO: it will be able to handle functions and variables, but for now it only handles variables.
         
             // check if variable is already defined
             // if it is, return with error (not in project requirements, but I think it should be)
@@ -567,6 +563,14 @@ void traverse_ast(ASTNode* node, ASTType prev_type){
             break;
     }
 }
+
+/**
+ * ==================================================================================================
+ *
+ * Helper functions to make the code more readable
+ *
+ * ==================================================================================================   
+ */
 
 void handle_arithmetic_operation(ASTNode* node, ASTType operation) {
     if (node == NULL) return;
@@ -614,6 +618,36 @@ void handle_arithmetic_operation(ASTNode* node, ASTType operation) {
     }
 }
 
+void handle_logical_operation(ASTNode* node, ASTType operation) {
+    if (node == NULL) return;
+
+    ASTNode* left_node = node->left;
+    ASTNode* right_node = operation != ast_not ? node->right : NULL;
+
+    general_type_checking(left_node, ast_boolean);
+
+    // ugly special case for ast_not
+    if(operation != ast_not){
+        general_type_checking(right_node, ast_boolean);
+    }
+
+    switch (operation) {
+        case ast_and:
+            node->value.bval = left_node->value.bval && right_node->value.bval;
+            node->type = ast_boolean;
+            break;
+        case ast_or:
+            node->value.bval = left_node->value.bval || right_node->value.bval;
+            node->type = ast_boolean;
+            break;
+        case ast_not:
+            node->value.bval = !left_node->value.bval;
+            node->type = ast_boolean;
+            break;
+    }
+}
+
+
 /**
  * Type checking TODO: Should be modify, ASTType should be SymbolType or one more function should be created
  */
@@ -660,7 +694,11 @@ void general_type_checking(ASTNode* node, ASTType correct_type){
 }
 
 /**
+ * ==================================================================================================
+ *
  * Symbol table
+ *
+ * ==================================================================================================   
  */
 
 /**
