@@ -1,9 +1,9 @@
 #!/bin/bash
 
-IS_TEST_HIDENT=0 # TODO: 請修改成 1 以測試 hidden test
+IS_TEST_HIDDEN=1 # TODO: 請修改成 1 以測試 hidden test
 if [ "$IS_TEST_HIDDEN" -eq 1 ]; then
     TEST_DIR="./tests/hidden_test_data_2021"  # TODO: 請修改成你的測試資料夾路徑
-    ANS_FILE="./tests/hidden_test_data_ans.txt" # TODO: 請修改成你的測試答案檔案路徑
+    ANS_FILE="./tests/hidden_test_data_ans_2021.txt" # TODO: 請修改成你的測試答案檔案路徑
 else
     TEST_DIR="./tests/public_test_data"  # TODO: 請修改成你的測試資料夾路徑
     ANS_FILE="./tests/public_test_data_ans.txt" # TODO: 請修改成你的測試答案檔案路徑
@@ -80,23 +80,25 @@ else
     echo "Unknown operating system"
 fi
 
-# # 如果編譯失敗，則退出
-# if [ $? -ne 0 ]; then
-#     echo -e "${COLOR_RED}Failed to compile the program.${COLOR_RESET}"
-#     exit 1
-# fi
+# 如果編譯失敗，則退出
+if [ $? -ne 0 ]; then
+    echo -e "${COLOR_RED}Failed to compile the program.${COLOR_RESET}"
+    exit 1
+fi
 
 # 測試
 for test_file in $TEST_DIR/*.lsp; do
     test_name=$(basename $test_file)
 
+    echo "$test_name"
+
     # Extract the expected output from the answer file
     if [ "$IS_TEST_HIDDEN" == 1 ]; then
-        expected_output=$(awk "/^$test_name$/{flag=1;next}/^[a-zA-Z0-9]+_[0-9]+_hidden\.lsp$/{flag=0}flag" "$HIDDEN_ANS_FILE") # hidden test
+        expected_output=$(awk "/^$test_name$/{flag=1;next}/^[a-zA-Z0-9]+_[0-9]+_hidden\.lsp$/{flag=0}flag" "$ANS_FILE") # hidden test
     else
         expected_output=$(awk "/^$test_name$/{flag=1;next}/^[a-zA-Z0-9]+_[0-9]+\.lsp$/{flag=0}flag" "$ANS_FILE")
     fi
-    
+
     # Run the program
     if [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
         actual_output=$($INTERPRETER < $test_file 2>&1)
