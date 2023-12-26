@@ -1,17 +1,22 @@
 %{
     #include <stdio.h>
     #include <stdlib.h>
+    #include <string.h>
     
     #define bool int
     #define true 1
     #define false 0
+
     #define DEBUG_MODE 0
-    #define TYPE_CHECKING_DEBUG_MODE 0
+    #define TYPE_CHECKING_DEBUG_MODE 1
+    
+    #define HASH_NUMBER 5381
+    #define SYMBOL_TABLE_SIZE 100
 
     int yylex();
     void yyerror(const char* message);
 
-    enum ASTType {
+    typedef enum ASTType {
             ast_root,
 
             /**
@@ -37,7 +42,7 @@
              * ouput type: BOOLEAN
              */
             ast_and,
-            ast_or,
+            ast_or, // 10
             ast_not,
 
             ast_boolean,
@@ -47,39 +52,80 @@
             ast_print_num,
             ast_print_bool,
 
+            /**
+             * if expression
+             */
             ast_if_exp,
             ast_if_body,
+
+            /**
+             * definition
+             */
+            ast_define,
+            ast_id, // 20
 
             /** 
              * others
              */
             ast_equals_to_parent,
-    };
+    } ASTType;
+    
+    typedef enum SymbolType {
+        symbol_number,
+        symbol_boolean,
+        symbol_function,
+    } SymbolType;
 
-    struct ASTNode {
-        enum ASTType type;        
+    typedef struct ASTNode {
+        ASTType type;        
         struct ASTNode* left;
         struct ASTNode* right;
 
         union {
             bool bval;
             int ival;
-            char* sval;
+            char* sval; // for id
         } value;
-    };
+    } ASTNode;
+
+    typedef struct SymbolEntry {
+        char* name;
+        int value;
+        SymbolType type;
+        struct SymbolEntry* next; // linked list to handle collisions
+    } SymbolEntry;
+
+    typedef struct {
+        int size;
+        struct SymbolEntry** table; // array of pointers to SymbolEntry
+    } SymbolTable;
     
 
-    struct ASTNode* root;
+    ASTNode* root;
+    SymbolTable* table;
 
-    struct ASTNode* new_node(enum ASTType type, struct ASTNode* left, struct ASTNode* right);
-    struct ASTNode* new_node_int(enum ASTType type, int ival, struct ASTNode* left, struct ASTNode* right);
-    struct ASTNode* new_node_bool(enum ASTType type, bool bval, struct ASTNode* left, struct ASTNode* right);
-    struct ASTNode* new_node_str(enum ASTType type, char* sval, struct ASTNode* left, struct ASTNode* right);
-    void free_node(struct ASTNode* node);
-    void traverse_ast(struct ASTNode* root, enum ASTType prev_type);
+    /* AST */
+    ASTNode* new_node(ASTType type, ASTNode* left, ASTNode* right);
+    ASTNode* new_node_int(int ival, ASTNode* left, ASTNode* right);
+    ASTNode* new_node_bool(bool bval, ASTNode* left, ASTNode* right);
+    ASTNode* new_node_id(char* sval, ASTNode* left, ASTNode* right);
+    void free_node(ASTNode* node);
+    void traverse_ast(ASTNode* root, ASTType prev_type);
+    void handle_arithmetic_operation(ASTNode* node, ASTType operation);
 
+    /* Type checking */
+    // it could match the symbol type of ast_id (variable) to the ASTType (ast_number, ast_boolean, ast_function)
+    void general_type_checking(ASTNode* node, ASTType correct_type); 
 
-    void type_checking(struct ASTNode* node, enum ASTType correct_type);
+    /* Symbol table */
+    SymbolTable* create_symbol_table(int size);
+    unsigned int hash(char* str, int size);
+    SymbolEntry* lookup_symbol(SymbolTable* table, char* name);
+    SymbolEntry* create_symbol_entry(char* name, int value, SymbolType type);
+    void insert_symbol(SymbolTable* table, char* name, int value, SymbolType type);
+    ASTNode* get_ast_node_from_symbol(SymbolTable* table, char* name);
+    
+    void free_symbol_table(SymbolTable* table);
 %}
 
 %union{
@@ -111,7 +157,7 @@ program     : stmts                             { root = $1;}
             ;
 
 stmts       : stmt stmts                        { $$ = new_node(ast_root , $1, $2);} 
-            | stmt                              { $$ = new_node(ast_root , $1, NULL);} 
+            | stmt
             ;
 
 stmt        : exp
@@ -127,8 +173,8 @@ exps        : exp exps                         { $$ = new_node(ast_equals_to_par
             | exp
             ;
 
-exp         : BOOL_VAL                         { $$ = new_node_bool(ast_boolean, $1, NULL, NULL);}
-            | NUMBER                           { $$ = new_node_int(ast_number, $1, NULL, NULL);}
+exp         : BOOL_VAL                         { $$ = new_node_bool($1, NULL, NULL);}
+            | NUMBER                           { $$ = new_node_int($1, NULL, NULL);}
             | variable                  
             | num_op
             | logical_op
@@ -188,10 +234,10 @@ not_op      : LPAREN NOT exp RPAREN             { $$ = new_node(ast_not, $3, NUL
             ;
 
 /* Definition */
-def_stmt    : LPAREN DEFINE variable exp RPAREN
+def_stmt    : LPAREN DEFINE variable exp RPAREN { $$ = new_node(ast_define, $3, $4);}
             ;
 
-variable    : ID
+variable    : ID                                { $$ = new_node_id($1, NULL, NULL);}
             ;
 
 /* Funtions */
@@ -241,8 +287,8 @@ else_exp    : exp
 %%
 
 
-struct ASTNode* new_node(enum ASTType type, struct ASTNode* left, struct ASTNode* right){
-    struct ASTNode* node = (struct ASTNode*)malloc(sizeof(struct ASTNode));
+ASTNode* new_node(ASTType type, ASTNode* left, ASTNode* right){
+    ASTNode* node = (ASTNode*)malloc(sizeof(struct ASTNode));
 
     node->type = type;
     node->left = left;
@@ -251,10 +297,10 @@ struct ASTNode* new_node(enum ASTType type, struct ASTNode* left, struct ASTNode
     return node;
 }
 
-struct ASTNode* new_node_int(enum ASTType type, int ival, struct ASTNode* left, struct ASTNode* right){
-    struct ASTNode* node = (struct ASTNode*)malloc(sizeof(struct ASTNode));
+ASTNode* new_node_int(int ival, ASTNode* left, ASTNode* right){
+    ASTNode* node = (ASTNode*)malloc(sizeof(struct ASTNode));
 
-    node->type = type;
+    node->type = ast_number;
     node->value.ival = ival;
     node->left = left;
     node->right = right;
@@ -263,10 +309,10 @@ struct ASTNode* new_node_int(enum ASTType type, int ival, struct ASTNode* left, 
 
 }
 
-struct ASTNode* new_node_bool(enum ASTType type, bool bval, struct ASTNode* left, struct ASTNode* right){
-    struct ASTNode* node = (struct ASTNode*)malloc(sizeof(struct ASTNode));
+ASTNode* new_node_bool(bool bval, ASTNode* left, ASTNode* right){
+    ASTNode* node = (ASTNode*)malloc(sizeof(struct ASTNode));
 
-    node->type = type;
+    node->type = ast_boolean;
     node->value.bval = bval;
     node->left = left;
     node->right = right;
@@ -276,19 +322,25 @@ struct ASTNode* new_node_bool(enum ASTType type, bool bval, struct ASTNode* left
 
 }
 
-struct ASTNode* new_node_str(enum ASTType type, char* sval, struct ASTNode* left, struct ASTNode* right){
-    struct ASTNode* node = (struct ASTNode*)malloc(sizeof(struct ASTNode));
+ASTNode* new_node_id(char* sval, ASTNode* left, ASTNode* right){
+    ASTNode* node = (ASTNode*)malloc(sizeof(struct ASTNode));
 
-    node->type = type;
-    node->value.sval = sval;
+    node->type = ast_id; 
+    node->value.sval = strdup(sval); // to prevent be affected by changes in the original string 
     node->left = left;
     node->right = right;
+
+    if(DEBUG_MODE){
+        printf("NEW NODE ID\n");
+        printf("NODE TYPE: %d\n", node->type);
+        printf("NODE VALUE: %s\n", node->value.sval);
+    }
 
     return node;
 
 }
 
-void free_node(struct ASTNode* node){
+void free_node(ASTNode* node){
     if(node == NULL){
         return;
     }
@@ -299,7 +351,7 @@ void free_node(struct ASTNode* node){
     free(node);
 }
 
-void traverse_ast(struct ASTNode* node, enum ASTType prev_type){
+void traverse_ast(ASTNode* node, ASTType prev_type){
     if(node == NULL){
         return;
     }
@@ -316,7 +368,6 @@ void traverse_ast(struct ASTNode* node, enum ASTType prev_type){
     traverse_ast(node->left, node->type);
     traverse_ast(node->right, node->type);
 
-
     switch(node->type){
         case ast_root:
             if(DEBUG_MODE){
@@ -324,114 +375,36 @@ void traverse_ast(struct ASTNode* node, enum ASTType prev_type){
             }
 
             break;
-        
+
+        /**
+         * ----------------------------- Numeric operations -----------------------------
+         */
+         
         case ast_plus:
-            if(DEBUG_MODE){
-                printf("AST PLUS\n");
-            }
-
-            type_checking(node->left, ast_number);
-            type_checking(node->right, ast_number);
-
-            node->value.ival = node->left->value.ival + node->right->value.ival;
-            node->type = ast_number;
-            break;
-        
-        case ast_minus:        
-            if(DEBUG_MODE){
-                printf("AST MINUS\n");
-            }
-
-            type_checking(node->left, ast_number);
-            type_checking(node->right, ast_number);
-
-            node->value.ival = node->left->value.ival - node->right->value.ival;
-            node->type = ast_number;
-            break;
-        
+        case ast_minus:
         case ast_multiply:
-            if(DEBUG_MODE){
-                printf("AST MULTIPLY\n");
-            }
-
-            type_checking(node->left, ast_number);
-            type_checking(node->right, ast_number);
-
-            node->value.ival = node->left->value.ival * node->right->value.ival;
-            node->type = ast_number;
-            break;
-
         case ast_divide:
-            if(DEBUG_MODE){
-                printf("AST DIVIDE\n");
-            }
-
-            /* WARNING: should I check for division by zero? */
-            
-            type_checking(node->left, ast_number);
-            type_checking(node->right, ast_number);
-            
-            node->value.ival = node->left->value.ival / node->right->value.ival;
-            node->type = ast_number;
-            break;
-
         case ast_modulus:
-            if(DEBUG_MODE){
-                printf("AST MODULUS\n");
-            }
-
-            /* WARNING: should I check for modulus by zero? */
-
-            type_checking(node->left, ast_number);
-            type_checking(node->right, ast_number);
-
-            node->value.ival = node->left->value.ival % node->right->value.ival;
-            node->type = ast_number;
-            break;
-        
         case ast_greater:
-            if(DEBUG_MODE){
-                printf("AST GREATER\n");
-            }
-
-            type_checking(node->left, ast_number);
-            type_checking(node->right, ast_number);
-
-            node->value.bval = node->left->value.ival > node->right->value.ival;
-            node->type = ast_boolean;
-            break;
-        
         case ast_smaller:
-            if(DEBUG_MODE){
-                printf("AST SMALLER\n");
-            }
-
-            type_checking(node->left, ast_number);
-            type_checking(node->right, ast_number);
-
-            node->value.bval = node->left->value.ival < node->right->value.ival;
-            node->type = ast_boolean;
-            break;
-        
         case ast_equal:
             if(DEBUG_MODE){
-                printf("AST EQUAL\n");
+                printf("AST OPERATION (PLUS/MINUS/MULTIPLY/DIVIDE/MODULUS)\n");
             }
 
-            type_checking(node->left, ast_number);
-            type_checking(node->right, ast_number);
-
-            node->value.bval = node->left->value.ival == node->right->value.ival;
-            node->type = ast_boolean;
+            handle_arithmetic_operation(node, node->type);
             break;
-        
+
+        /**
+         * ----------------------------- Logical operations -----------------------------
+         */
         case ast_and:
             if(DEBUG_MODE){
                 printf("AST AND\n");
             }
 
-            type_checking(node->left, ast_boolean);
-            type_checking(node->right, ast_boolean);
+            general_type_checking(node->left, ast_boolean);
+            general_type_checking(node->right, ast_boolean);
 
             node->value.bval = node->left->value.bval && node->right->value.bval;
             node->type = ast_boolean;
@@ -442,8 +415,8 @@ void traverse_ast(struct ASTNode* node, enum ASTType prev_type){
                 printf("AST OR\n");
             }
 
-            type_checking(node->left, ast_boolean);
-            type_checking(node->right, ast_boolean);
+            general_type_checking(node->left, ast_boolean);
+            general_type_checking(node->right, ast_boolean);
 
             node->value.bval = node->left->value.bval || node->right->value.bval;
             node->type = ast_boolean;
@@ -454,51 +427,86 @@ void traverse_ast(struct ASTNode* node, enum ASTType prev_type){
                 printf("AST NOT\n");
             }
 
-            type_checking(node->left, ast_boolean);
-            type_checking(node->right, ast_boolean);
+            general_type_checking(node->left, ast_boolean);
+            general_type_checking(node->right, ast_boolean);
 
             node->value.bval = !node->left->value.bval;
             node->type = ast_boolean;
-            break;    
-        
+            break;
+
+
+
+        /**
+         * ----------------------------- Pinrt Functions -----------------------------
+         */
         case ast_print_bool:
             if(DEBUG_MODE){
                 printf("AST PRINT BOOL\n");
             }
-            
-            traverse_ast(node->left, node->type);
-        
-            type_checking(node->left, ast_boolean);
 
-            printf("%s\n", node->left->value.bval ? "#t" : "#f");
+            ASTNode* print_bool_node = node->left;
+            
+            // check is the print_bool_node is a variable
+            // if it is, get the value from the symbol table
+            // if not, just print the value
+            if(print_bool_node->type == ast_id){
+                SymbolEntry* entry = lookup_symbol(table, print_bool_node->value.sval);
+                if(entry != NULL) {
+                    print_bool_node->value.bval = entry->value;
+                } else {
+                    // check if the variable is defined
+                    // WANRING: this is not in the project requirements, but I think it should be
+                    yyerror("Variable not defined! You can't print it!");
+                    exit(0);
+                }
+            }
+
+            /* general_type_checking(print_bool_node, ast_boolean); */
+
+            printf("%s\n", print_bool_node->value.bval ? "#t" : "#f");
             
             free_node(node);
             break;
         
         case ast_print_num:
             if(DEBUG_MODE){
-                printf("AST PRINT NUM. NUM VALUE: %d\n", node->left->value.ival);
+                printf("AST PRINT NUM.\n");
             }
 
-            traverse_ast(node->left, node->type);
+            ASTNode* print_num_node = node->left;
         
-            type_checking(node->left, ast_number);
+            // check is the print_num_node is a variable
+            // if it is, get the value from the symbol table
+            if(print_num_node->type == ast_id){
+                print_num_node = get_ast_node_from_symbol(table, print_num_node->value.sval);
+            }
 
-            printf("%d\n", node->left->value.ival);
+            general_type_checking(print_num_node, ast_number);
+
+            if(DEBUG_MODE){
+                printf("PRINT NUM NODE TYPE: %d\n", print_num_node->type);
+                printf("PRINT NUM NODE VALUE: %d\n", print_num_node->value.ival);
+            }
+
+            printf("%d\n", print_num_node->value.ival);
 
             free_node(node);
             break;
         
+        /**
+         * ----------------------------- If -----------------------------
+         */
+
         case ast_if_exp:
             if(DEBUG_MODE){
                 printf("AST IF EXP. IF EXP VALUE: %s\n", node->left->value.bval ? "#t" : "#f");
             }
             
-            struct ASTNode* if_condition_node = node->left;
-            type_checking(if_condition_node, ast_boolean);
+            ASTNode* if_condition_node = node->left;
+            general_type_checking(if_condition_node, ast_boolean);
 
-            struct ASTNode* if_body_node = node->right;
-            type_checking(if_body_node, ast_if_body);
+            ASTNode* if_body_node = node->right;
+            general_type_checking(if_body_node, ast_if_body);
 
             if(if_condition_node->value.bval) {
                 traverse_ast(if_body_node->left, if_body_node->type);
@@ -512,39 +520,286 @@ void traverse_ast(struct ASTNode* node, enum ASTType prev_type){
             node->type = ast_number;
 
             break;
+
+        /**
+         * ----------------------------- Definition -----------------------------
+         */
+        case ast_define:
+            if(DEBUG_MODE){
+                printf("AST DEFINE\n"); 
+                printf("VARIABLE NAME: %s\n", node->left->value.sval);
+                printf("VARIABLE VALUE: %d\n", node->right->value.ival);
+            }
+        
+            // check if variable is already defined
+            // if it is, return with error (not in project requirements, but I think it should be)
+            // if not, insert it in the symbol table
+            ASTNode* variable_name_node = node->left;
+            general_type_checking(variable_name_node, ast_id);
+
+            ASTNode* value_node = node->right;
+
+            if(lookup_symbol(table, variable_name_node->value.sval) != NULL){
+                yyerror("Variable already defined!");
+                exit(0);
+            } else {
+                // get the type of the value
+                SymbolType value_type;
+                switch(value_node->type){
+                    case ast_number:
+                        value_type = symbol_number;
+                        break;
+                    case ast_boolean:
+                        value_type = symbol_boolean;
+                        break;
+                    case ast_function:
+                        value_type = symbol_function; // TODO: check if this would be handled here.
+                        break;
+                    default:
+                        yyerror("Invalid value type!");
+                        exit(0);
+                }
+
+                // insert the variable in the symbol table
+                insert_symbol(table, variable_name_node->value.sval, value_node->value.ival, value_type);
+            }
+            
+            break;
     }
 }
 
+void handle_arithmetic_operation(ASTNode* node, ASTType operation) {
+    if (node == NULL) return;
 
-void yyerror(const char* message){
-    fprintf(stderr, "%s\n", message);
-    
-    exit(0);
+    ASTNode* left_node = (node->left->type == ast_id) ? get_ast_node_from_symbol(table, node->left->value.sval) : node->left;
+    ASTNode* right_node = (node->right->type == ast_id) ? get_ast_node_from_symbol(table, node->right->value.sval) : node->right;
+
+    general_type_checking(left_node, ast_number);
+    general_type_checking(right_node, ast_number);
+
+    switch (operation) {
+        case ast_plus:
+            node->value.ival = left_node->value.ival + right_node->value.ival;
+            node->type = ast_number;
+            break;
+        case ast_minus:
+            node->value.ival = left_node->value.ival - right_node->value.ival;
+            node->type = ast_number;
+            break;
+        case ast_multiply:
+            node->value.ival = left_node->value.ival * right_node->value.ival;
+            node->type = ast_number;
+            break;
+        case ast_divide:
+            node->value.ival = left_node->value.ival / right_node->value.ival;
+            node->type = ast_number;
+            break;
+        case ast_modulus:
+            node->value.ival = left_node->value.ival % right_node->value.ival;
+            node->type = ast_number;
+            break;
+        case ast_greater:
+            node->value.bval = left_node->value.ival > right_node->value.ival;
+            node->type = ast_boolean;
+            break;
+        case ast_smaller:
+            node->value.bval = left_node->value.ival < right_node->value.ival;
+            node->type = ast_boolean;
+            break;
+        case ast_equal:
+            node->value.bval = left_node->value.ival == right_node->value.ival;
+            node->type = ast_boolean;
+            break;
+        
+    }
 }
 
-void type_checking(struct ASTNode* node, enum ASTType correct_type){
+/**
+ * Type checking TODO: Should be modify, ASTType should be SymbolType or one more function should be created
+ */
+void general_type_checking(ASTNode* node, ASTType correct_type){
     if(node == NULL){
         return;
     }
     
     if(DEBUG_MODE && TYPE_CHECKING_DEBUG_MODE){
         printf("TYPE CHECKING\n");
-        printf("NODE TYPE: %d\n", node->type);
-        printf("CORRECT TYPE: %d\n", correct_type);
+    }
+    
+    ASTType actual_type = node->type;
+
+    // Special case for ast_id
+    // TODO: Now it works, but it is ugly. Might be refactor after the project is done
+    if(correct_type == ast_id){
+        if(actual_type != correct_type){
+            yyerror("Type error!");
+            exit(0);
+        }
+    } else {
+        // if node->type is ast_id, convert the actual_type based on the symbol type
+        if(node->type == ast_id){
+            ASTNode* tmp_node = get_ast_node_from_symbol(table, node->value.sval);
+            if(tmp_node != NULL){
+                actual_type = tmp_node->type;
+                free_node(tmp_node);
+            } else {
+                yyerror("Variable not defined! In general_type_checking\n");
+                exit(0);
+            }
+        }
+
+        if(DEBUG_MODE && TYPE_CHECKING_DEBUG_MODE){
+            printf("ACTUAL TYPE: %d\n", actual_type);
+            printf("CORRECT TYPE: %d\n", correct_type);
+        }
+
+        if(actual_type != correct_type){
+            yyerror("Type error!");
+        }
+    }
+}
+
+/**
+ * Symbol table
+ */
+
+/**
+ * Hash function from http://www.cse.yorku.ca/~oz/hash.html
+ * djb2 (k=33)
+ */
+unsigned int hash(char* str, int size){
+    unsigned int hash = HASH_NUMBER;
+    int c;
+
+    while(c = *str++){
+        hash = ((hash << 5) + hash) + c;
     }
 
+    return hash % size;
+}
 
-    if(node->type != correct_type){
-        yyerror("Type error!");
-        exit(0);
+SymbolTable* create_symbol_table(int size){
+    SymbolTable* new_table = malloc(sizeof(SymbolTable));
+    new_table->size = size;
+    new_table->table = malloc(sizeof(SymbolEntry*) * size);
+    for(int i = 0; i < size; i++){
+        new_table->table[i] = NULL;
+    }
+    return new_table;
+}
+
+SymbolEntry* lookup_symbol(SymbolTable* table, char* name){
+    unsigned int index = hash(name, table->size);
+    SymbolEntry* entry = table->table[index];
+    while(entry != NULL){
+        if(strcmp(entry->name, name) == 0){
+            return entry;
+        }
+        entry = entry->next; // collision
+    }
+    return NULL;
+}
+
+SymbolEntry* create_symbol_entry(char* name, int value, SymbolType type){
+    SymbolEntry* entry = malloc(sizeof(SymbolEntry));
+    entry->name = malloc(sizeof(char) * strlen(name));
+    strcpy(entry->name, name);
+    entry->value = value;
+    entry->type = type;
+    entry->next = NULL;
+    return entry;
+}
+
+
+void insert_symbol(SymbolTable* table, char* name, int value, SymbolType type){
+    SymbolEntry* entry = lookup_symbol(table, name);
+    if(entry != NULL){
+        entry->value = value;
+        entry->type = type;
+    }
+    else{
+        unsigned int index = hash(name, table->size);
+        SymbolEntry* new_entry = create_symbol_entry(name, value, type);
+        new_entry->next = table->table[index];
+        table->table[index] = new_entry;
+    }
+}
+
+ASTNode* get_ast_node_from_symbol(SymbolTable* table, char* name){
+    SymbolEntry* entry = lookup_symbol(table, name);
+    if(entry != NULL){
+
+        if(DEBUG_MODE){
+            printf("GET AST NODE FROM SYMBOL\n");
+            printf("SYMBOL NAME: %s\n", entry->name);
+            printf("SYMBOL VALUE: %d\n", entry->value);
+            printf("SYMBOL TYPE: %d\n", entry->type);
+        }
+
+        switch(entry->type){
+            case symbol_number:
+                return new_node_int(entry->value, NULL, NULL);
+            case symbol_boolean:
+                return new_node_bool(entry->value, NULL, NULL);
+            /* case symbol_function:
+                return; // TODO: handle this case */
+        }
+    } else {
+        yyerror("Variable not defined! In get_ast_node_from_symbol\n");
     }
 }
 
 
+void free_symbol_table(SymbolTable* table){
+    for(int i = 0; i < table->size; i++){
+        SymbolEntry* entry = table->table[i];
+        while(entry != NULL){
+            SymbolEntry* next = entry->next;
+            free(entry->name);
+            free(entry);
+            entry = next;
+        }
+    }
+    free(table->table);
+    free(table);
+}
+
+
+
+void yyerror(const char* message){
+    fprintf(stderr, "%s\n", message);
+    
+    /* if(!DEBUG_MODE){ */
+        exit(0);
+    /* } */
+}
+
 int main(){
+    table = create_symbol_table(SYMBOL_TABLE_SIZE);
+
     yyparse();
 
     traverse_ast(root, ast_root);
+
+
+    if(DEBUG_MODE){
+        // print symbol table
+        printf("\n");
+        printf("========== SYMBOL TABLE ==========\n");
+        for(int i = 0; i < table->size; i++){
+            SymbolEntry* entry = table->table[i];
+            while(entry != NULL){
+                printf("NAME: %s\n", entry->name);
+                printf("VALUE: %d\n", entry->value);
+                printf("SYMBOL TYPE: %d\n", entry->type);
+                printf("\n");
+                entry = entry->next;
+            }
+        }
+        printf("==================================\n");
+    }
+
+    free_symbol_table(table);
 
     return 0;
 }
