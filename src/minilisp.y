@@ -6,6 +6,7 @@
     #define true 1
     #define false 0
     #define DEBUG_MODE 0
+    #define TYPE_CHECKING_DEBUG_MODE 0
 
     int yylex();
     void yyerror(const char* message);
@@ -45,6 +46,9 @@
 
             ast_print_num,
             ast_print_bool,
+
+            ast_if_exp,
+            ast_if_body,
 
             /** 
              * others
@@ -222,7 +226,7 @@ fun_name    : ID
             ; 
 
 /* If expression */
-if_exp      : LPAREN IF test_exp then_exp else_exp RPAREN
+if_exp      : LPAREN IF test_exp then_exp else_exp RPAREN { $$ = new_node(ast_if_exp, $3, new_node(ast_if_body, $4, $5));}
             ;
 
 test_exp    : exp
@@ -327,7 +331,7 @@ void traverse_ast(struct ASTNode* node, enum ASTType prev_type){
             }
 
             type_checking(node->left, ast_number);
-type_checking(node->right, ast_number);
+            type_checking(node->right, ast_number);
 
             node->value.ival = node->left->value.ival + node->right->value.ival;
             node->type = ast_number;
@@ -339,7 +343,7 @@ type_checking(node->right, ast_number);
             }
 
             type_checking(node->left, ast_number);
-type_checking(node->right, ast_number);
+            type_checking(node->right, ast_number);
 
             node->value.ival = node->left->value.ival - node->right->value.ival;
             node->type = ast_number;
@@ -365,7 +369,7 @@ type_checking(node->right, ast_number);
             /* WARNING: should I check for division by zero? */
             
             type_checking(node->left, ast_number);
-type_checking(node->right, ast_number);
+            type_checking(node->right, ast_number);
             
             node->value.ival = node->left->value.ival / node->right->value.ival;
             node->type = ast_number;
@@ -458,14 +462,13 @@ type_checking(node->right, ast_number);
             break;    
         
         case ast_print_bool:
-            traverse_ast(node->left, node->type);
-        
             if(DEBUG_MODE){
                 printf("AST PRINT BOOL\n");
             }
-
+            
+            traverse_ast(node->left, node->type);
+        
             type_checking(node->left, ast_boolean);
-            type_checking(node->right, ast_boolean);
 
             printf("%s\n", node->left->value.bval ? "#t" : "#f");
             
@@ -473,20 +476,42 @@ type_checking(node->right, ast_number);
             break;
         
         case ast_print_num:
-            traverse_ast(node->left, node->type);
-        
             if(DEBUG_MODE){
-                printf("AST PRINT NUM\n");
+                printf("AST PRINT NUM. NUM VALUE: %d\n", node->left->value.ival);
             }
 
+            traverse_ast(node->left, node->type);
+        
             type_checking(node->left, ast_number);
-            type_checking(node->right, ast_number);
 
             printf("%d\n", node->left->value.ival);
 
             free_node(node);
             break;
+        
+        case ast_if_exp:
+            if(DEBUG_MODE){
+                printf("AST IF EXP. IF EXP VALUE: %s\n", node->left->value.bval ? "#t" : "#f");
+            }
+            
+            struct ASTNode* if_condition_node = node->left;
+            type_checking(if_condition_node, ast_boolean);
 
+            struct ASTNode* if_body_node = node->right;
+            type_checking(if_body_node, ast_if_body);
+
+            if(if_condition_node->value.bval) {
+                traverse_ast(if_body_node->left, if_body_node->type);
+                node->value.ival = if_body_node->left->value.ival;
+            }
+            else {
+                traverse_ast(if_body_node->right, if_body_node->type);
+                node->value.ival = if_body_node->right->value.ival;
+            } 
+
+            node->type = ast_number;
+
+            break;
     }
 }
 
@@ -498,15 +523,16 @@ void yyerror(const char* message){
 }
 
 void type_checking(struct ASTNode* node, enum ASTType correct_type){
-    if(DEBUG_MODE){
+    if(node == NULL){
+        return;
+    }
+    
+    if(DEBUG_MODE && TYPE_CHECKING_DEBUG_MODE){
         printf("TYPE CHECKING\n");
         printf("NODE TYPE: %d\n", node->type);
         printf("CORRECT TYPE: %d\n", correct_type);
     }
 
-    if(node == NULL){
-        return;
-    }
 
     if(node->type != correct_type){
         yyerror("Type error!");

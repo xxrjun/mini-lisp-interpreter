@@ -62,8 +62,8 @@ IMPORTANT: Features 1-4 must be finished before other features.
 |if Expression        
 |Implement if expression
 |8      
-|        
-|                        
+|✅
+|✅                      
 
 |Variable Definition 
 |Able to define a variable        
