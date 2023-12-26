@@ -75,7 +75,7 @@
     void traverse_ast(struct ASTNode* root, enum ASTType prev_type);
 
 
-    
+    void type_checking(struct ASTNode* node, enum ASTType correct_type);
 %}
 
 %union{
@@ -295,7 +295,6 @@ void free_node(struct ASTNode* node){
     free(node);
 }
 
-
 void traverse_ast(struct ASTNode* node, enum ASTType prev_type){
     if(node == NULL){
         return;
@@ -327,121 +326,132 @@ void traverse_ast(struct ASTNode* node, enum ASTType prev_type){
                 printf("AST PLUS\n");
             }
 
-            /* TODO: Add type checking here. */
+            type_checking(node->left, ast_number);
+type_checking(node->right, ast_number);
 
             node->value.ival = node->left->value.ival + node->right->value.ival;
             node->type = ast_number;
             break;
         
-        case ast_minus:
-            
-        
+        case ast_minus:        
             if(DEBUG_MODE){
                 printf("AST MINUS\n");
             }
+
+            type_checking(node->left, ast_number);
+type_checking(node->right, ast_number);
 
             node->value.ival = node->left->value.ival - node->right->value.ival;
             node->type = ast_number;
             break;
         
         case ast_multiply:
-            
-        
             if(DEBUG_MODE){
                 printf("AST MULTIPLY\n");
             }
+
+            type_checking(node->left, ast_number);
+            type_checking(node->right, ast_number);
 
             node->value.ival = node->left->value.ival * node->right->value.ival;
             node->type = ast_number;
             break;
 
         case ast_divide:
-            
-        
             if(DEBUG_MODE){
                 printf("AST DIVIDE\n");
             }
 
             /* WARNING: should I check for division by zero? */
-
+            
+            type_checking(node->left, ast_number);
+type_checking(node->right, ast_number);
+            
             node->value.ival = node->left->value.ival / node->right->value.ival;
             node->type = ast_number;
             break;
 
         case ast_modulus:
-            
-        
             if(DEBUG_MODE){
                 printf("AST MODULUS\n");
             }
 
             /* WARNING: should I check for modulus by zero? */
 
+            type_checking(node->left, ast_number);
+            type_checking(node->right, ast_number);
+
             node->value.ival = node->left->value.ival % node->right->value.ival;
             node->type = ast_number;
             break;
         
         case ast_greater:
-            
-        
             if(DEBUG_MODE){
                 printf("AST GREATER\n");
             }
+
+            type_checking(node->left, ast_number);
+            type_checking(node->right, ast_number);
 
             node->value.bval = node->left->value.ival > node->right->value.ival;
             node->type = ast_boolean;
             break;
         
         case ast_smaller:
-            
-        
             if(DEBUG_MODE){
                 printf("AST SMALLER\n");
             }
+
+            type_checking(node->left, ast_number);
+            type_checking(node->right, ast_number);
 
             node->value.bval = node->left->value.ival < node->right->value.ival;
             node->type = ast_boolean;
             break;
         
         case ast_equal:
-            
-        
             if(DEBUG_MODE){
                 printf("AST EQUAL\n");
             }
+
+            type_checking(node->left, ast_number);
+            type_checking(node->right, ast_number);
 
             node->value.bval = node->left->value.ival == node->right->value.ival;
             node->type = ast_boolean;
             break;
         
         case ast_and:
-            
-        
             if(DEBUG_MODE){
                 printf("AST AND\n");
             }
+
+            type_checking(node->left, ast_boolean);
+            type_checking(node->right, ast_boolean);
 
             node->value.bval = node->left->value.bval && node->right->value.bval;
             node->type = ast_boolean;
             break;
         
         case ast_or:
-            
-        
             if(DEBUG_MODE){
                 printf("AST OR\n");
             }
+
+            type_checking(node->left, ast_boolean);
+            type_checking(node->right, ast_boolean);
 
             node->value.bval = node->left->value.bval || node->right->value.bval;
             node->type = ast_boolean;
             break;
         
-        case ast_not:
-            traverse_ast(node->left, node->type);
-        
+        case ast_not:     
             if(DEBUG_MODE){
                 printf("AST NOT\n");
             }
+
+            type_checking(node->left, ast_boolean);
+            type_checking(node->right, ast_boolean);
 
             node->value.bval = !node->left->value.bval;
             node->type = ast_boolean;
@@ -454,6 +464,9 @@ void traverse_ast(struct ASTNode* node, enum ASTType prev_type){
                 printf("AST PRINT BOOL\n");
             }
 
+            type_checking(node->left, ast_boolean);
+            type_checking(node->right, ast_boolean);
+
             printf("%s\n", node->left->value.bval ? "#t" : "#f");
             
             free_node(node);
@@ -465,6 +478,9 @@ void traverse_ast(struct ASTNode* node, enum ASTType prev_type){
             if(DEBUG_MODE){
                 printf("AST PRINT NUM\n");
             }
+
+            type_checking(node->left, ast_number);
+            type_checking(node->right, ast_number);
 
             printf("%d\n", node->left->value.ival);
 
@@ -480,6 +496,24 @@ void yyerror(const char* message){
     
     exit(0);
 }
+
+void type_checking(struct ASTNode* node, enum ASTType correct_type){
+    if(DEBUG_MODE){
+        printf("TYPE CHECKING\n");
+        printf("NODE TYPE: %d\n", node->type);
+        printf("CORRECT TYPE: %d\n", correct_type);
+    }
+
+    if(node == NULL){
+        return;
+    }
+
+    if(node->type != correct_type){
+        yyerror("Type error!");
+        exit(0);
+    }
+}
+
 
 int main(){
     yyparse();
