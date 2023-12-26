@@ -1,7 +1,7 @@
 01_1.lsp
-Need 2 arguments, but got 0.
+syntax error
 01_2.lsp
-syntax error, unexpected '-'
+syntax error
 02_1.lsp
 1
 2
