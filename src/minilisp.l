@@ -42,7 +42,7 @@ bool_val_f  #f
 "if"            { return IF; }
 
 {numbers}       { yylval.ival = atoi(yytext); return NUMBER; }
-{id}            { yylval.sval = yytext; return ID; }
+{id}            { yylval.sval = strdup(yytext); return ID; }
 {bool_val_t}    { yylval.bval = 1; return BOOL_VAL; }
 {bool_val_f}    { yylval.bval = 0; return BOOL_VAL; }
 
