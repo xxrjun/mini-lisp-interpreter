@@ -9,6 +9,7 @@
 
     #define DEBUG_MODE 0
     #define TYPE_CHECKING_DEBUG_MODE 0
+    #define SCOPE_STACK_DEBUG_MODE 1
     
     #define HASH_NUMBER 5381
     #define MAX_SYMBOL_TABLE_SIZE 100
@@ -140,7 +141,7 @@
     ASTNode* new_node_bool(bool bval, ASTNode* left, ASTNode* right);
     ASTNode* new_node_id(char* sval, ASTNode* left, ASTNode* right);
     void free_node(ASTNode* node);
-    void traverse_ast(ASTNode* root, ASTType prev_type, bool is_in_function); // 多一個參數，用來判斷是否在function裡面
+    void traverse_ast(ASTNode* root, ASTType prev_type);
     ASTNode* clone_ast(ASTNode* node);
     /* Functions */
     char** extract_function_params(ASTNode* fun_ids, int param_count);
@@ -172,6 +173,7 @@
     /* Others */
     char* get_ast_type(ASTType type);
     char* get_symbol_type(SymbolType type);
+    char* get_raw_data_type_from_ast_type(ASTType type);
     void print_symbol_table(SymbolTable* table);
     void print_scope_stack(ScopeStack* stack);
     void print_ast_tree(ASTNode* node);
@@ -197,8 +199,9 @@
 %type<nval> exps exp variable
 %type<nval> num_op plus minus multiply divide modulus greater smaller equal
 %type<nval> logical_op and_op or_op not_op
-%type<nval> fun_exp fun_call fun_body fun_name params param last_exp fun_ids ids
+%type<nval> fun_exp fun_call fun_body fun_name params param  fun_ids ids
 %type<nval> if_exp test_exp then_exp else_exp
+/* %type<nval> last_exp  */ // don't know what is this for, so I comment it out
 
 %%
 
@@ -308,14 +311,14 @@ fun_call    : LPAREN fun_exp params RPAREN      { $$ = new_node(ast_function_cal
             ;
 
 params      : param params                      { $$ = new_node(ast_function_params, $1, $2); }
-            | 
+            |                                   { $$ = NULL; }
             ;
 
 param       : exp
             ;
 
-last_exp    : exp
-            ;
+/* last_exp    : exp
+            ; */
 
 fun_name    : ID                                { $$ = new_node_id($1, NULL, NULL); }
             ; 
@@ -374,8 +377,6 @@ ASTNode* new_node_bool(bool bval, ASTNode* left, ASTNode* right){
     node->right = right;
 
     return node;
-
-
 }
 
 ASTNode* new_node_id(char* sval, ASTNode* left, ASTNode* right){
@@ -391,7 +392,7 @@ ASTNode* new_node_id(char* sval, ASTNode* left, ASTNode* right){
     node->right = right;
 
     if(DEBUG_MODE){
-        printf("NODE TYPE: %d\n", node->type);
+        printf("NODE TYPE: %s\n", get_ast_type(node->type));
     }
 
     return node;
@@ -432,7 +433,7 @@ Function* create_function(char* name, ASTNode* fun_ids, ASTNode* body){
     if(DEBUG_MODE){
         printf("CREATE FUNCTION\n");
         printf("FUNCTION NAME: %s\n", name);
-        printf("FUNCTION PARAMS: %s\n", fun_ids->left->value.sval);
+        printf("FUNCTION PARAMS: %s\n", fun_ids == NULL ? "NULL" : fun_ids->left->value.sval);
     }
 
     int param_count = 0;
@@ -474,11 +475,14 @@ void bind_parameters_to_scope(char** params, ASTNode* args, ScopeStack* stack, i
     }
 
     if(param_count == 0){
+        if(DEBUG_MODE){
+            printf("PARAM COUNT IS 0. JUST RETURN\n");
+        }
         return;
     }
 
     if(args == NULL){
-        yyerror("Invalid number of arguments!");
+        yyerror("Invalid number of arguments! Because args is NULL\n");
         exit(0);
     }
 
@@ -486,7 +490,61 @@ void bind_parameters_to_scope(char** params, ASTNode* args, ScopeStack* stack, i
     int index = 0;
     ASTNode* current = args;
     while (current != NULL && current->left != NULL && index < param_count) {
-        insert_symbol(stack, params[index++], &(current->left->value.ival), symbol_number);
+        // Evaluate the argument if it's a function
+        // TODO: They way handle function call could be refactor, it's ugly now
+        // The only difference is the scope is still the same, so we don't need to create a new scope 
+        if(current->left->type == ast_function_call){
+            if(DEBUG_MODE){
+                printf("FUNCTION CALL in bind_parameters_to_scope: %s\n", current->left->left->value.sval);
+            }
+            SymbolEntry* func_entry = lookup_symbol(scope_stack, current->left->left->value.sval);
+            if(func_entry != NULL && func_entry->type == symbol_function){
+                Function* func = func_entry->func;
+                ASTNode* function_body_node = func->body;
+
+                // traverse the function parameters
+                traverse_ast(current->right, current->type);
+
+                // bind the parameters to the scope
+                bind_parameters_to_scope(func->params, current->left->right, scope_stack, func->param_count);
+
+                // traverse the function body
+                traverse_ast(function_body_node, function_body_node->type);
+
+                current->type = function_body_node->type;
+                current->value = function_body_node->value;
+
+                // bind the result to the scope
+                if(function_body_node->type == ast_number){
+                    insert_symbol(scope_stack, params[index++], &(function_body_node->value.ival), symbol_number);
+                } else if(function_body_node->type == ast_boolean){
+                    insert_symbol(scope_stack, params[index++], &(function_body_node->value.bval), symbol_boolean);
+                } else if(function_body_node->type == ast_function){ // function 
+                    insert_symbol(scope_stack, params[index++], &(function_body_node->value.sval), symbol_function);
+                } else {
+                    yyerror("Invalid argument type!1");
+                }
+
+                // free the function
+                free(func);
+            } else {
+                yyerror("Function not defined! In bind_parameters_to_scope\n");
+            }
+
+        } else {
+            if(current->left->type == ast_number){
+                insert_symbol(scope_stack, params[index++], &(current->left->value.ival), symbol_number);
+            } else if(current->left->type == ast_boolean){
+                insert_symbol(scope_stack, params[index++], &(current->left->value.bval), symbol_boolean);
+            } else if (current->left->type == ast_function){
+                insert_symbol(scope_stack, params[index++], &(current->left->value.sval), symbol_function);
+            } else {
+                if(DEBUG_MODE){
+                    printf("CURRENT TYPE: %s\n", get_ast_type(current->left->type));
+                }
+                yyerror("Invalid argument type!");
+            }
+        }
         current = current->right;
     }
 
@@ -495,8 +553,7 @@ void bind_parameters_to_scope(char** params, ASTNode* args, ScopeStack* stack, i
     }
 }
 
-
-void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
+void traverse_ast(ASTNode* node, ASTType prev_type){
     if(node == NULL){
         return;
     }
@@ -511,16 +568,16 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
     }
 
   
-    /* traverse_ast(node->left, node->type, is_in_function);
-    traverse_ast(node->right, node->type, is_in_function); */
+    /* traverse_ast(node->left, node->type);
+    traverse_ast(node->right, node->type); */
 
     switch(node->type){
         case ast_root:
             if(DEBUG_MODE){
                 printf("AST ROOT\n");
             }
-            traverse_ast(node->left, node->type, is_in_function);
-            traverse_ast(node->right, node->type, is_in_function);
+            traverse_ast(node->left, node->type);
+            traverse_ast(node->right, node->type);
             break;
 
         /**
@@ -538,8 +595,8 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
             if(DEBUG_MODE){
                 printf("AST OPERATION (PLUS/MINUS/MULTIPLY/DIVIDE/MODULUS)\n");
             }
-            traverse_ast(node->left, node->type, is_in_function);
-            traverse_ast(node->right, node->type, is_in_function);
+            traverse_ast(node->left, node->type);
+            traverse_ast(node->right, node->type);
             handle_arithmetic_operation(node, node->type);
             break;
 
@@ -552,8 +609,8 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
             if(DEBUG_MODE){
                 printf("AST OPERATION (AND/OR/NOT)\n");
             }
-            traverse_ast(node->left, node->type, is_in_function);
-            traverse_ast(node->right, node->type, is_in_function);
+            traverse_ast(node->left, node->type);
+            traverse_ast(node->right, node->type);
             handle_logical_operation(node, node->type);
             break;
 
@@ -565,8 +622,8 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
             if(DEBUG_MODE){
                 printf("AST PRINT BOOL\n");
             }
-            traverse_ast(node->left, node->type, is_in_function);
-            traverse_ast(node->right, node->type, is_in_function);
+            traverse_ast(node->left, node->type);
+            traverse_ast(node->right, node->type);
             ASTNode* print_bool_node = node->left->type == ast_id ? 
                                         get_ast_node_from_symbol(scope_stack, node->left->value.sval) : node->left;
             
@@ -577,10 +634,10 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
         
         case ast_print_num:
             if(DEBUG_MODE){
-                printf("AST PRINT NUM.\n");
+                printf("AST PRINT NUM\n");
             }
-            traverse_ast(node->left, node->type, is_in_function);
-            traverse_ast(node->right, node->type, is_in_function);
+            traverse_ast(node->left, node->type);
+            traverse_ast(node->right, node->type);
             ASTNode* print_num_node = node->left->type == ast_id ?
                                         get_ast_node_from_symbol(scope_stack, node->left->value.sval) : node->left;
 
@@ -597,8 +654,8 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
             if(DEBUG_MODE){
                 printf("AST IF EXP. IF EXP VALUE: %s\n", node->left->value.bval ? "#t" : "#f");
             }
-            traverse_ast(node->left, node->type, is_in_function);
-            traverse_ast(node->right, node->type, is_in_function);
+            traverse_ast(node->left, node->type);
+            traverse_ast(node->right, node->type);
 
             ASTNode* if_condition_node = node->left;
             general_type_checking(if_condition_node, ast_boolean);
@@ -607,13 +664,12 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
             general_type_checking(if_body_node, ast_if_body);
 
             if(if_condition_node->value.bval) {
-                node->value.ival = if_body_node->left->value.ival;
+                node->type = if_body_node->left->type;
+                node->value = if_body_node->left->value;
+            } else {
+                node->type = if_body_node->right->type;
+                node->value = if_body_node->right->value;
             }
-            else {
-                node->value.ival = if_body_node->right->value.ival;
-            } 
-
-            node->type = ast_number;
 
             break;
 
@@ -624,11 +680,15 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
             if(DEBUG_MODE){
                 printf("AST DEFINE\n"); 
                 printf("VARIABLE NAME: %s\n", node->left->value.sval);
+                printf("AST TYPE: %s\n", get_ast_type(node->right->type));
             }
-            traverse_ast(node->left, node->type, is_in_function);
-            traverse_ast(node->right, node->type, is_in_function);
-            // TODO: it will be able to handle functions and variables, but for now it only handles variables.
-        
+
+            if(node->right->type == ast_function){
+            } else {
+                traverse_ast(node->left, node->type);
+                traverse_ast(node->right, node->type);
+            }
+           
             // check if variable is already defined
             // if it is, return with error (not in project requirements, but I think it should be)
             // if not, insert it in the symbol table
@@ -639,29 +699,33 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
 
             if(lookup_symbol(scope_stack, variable_name_node->value.sval) != NULL){
                 yyerror("Variable already defined!");
-                exit(0);
             } else {
                 // get the type of the value
                 SymbolType value_type;
                 switch(value_node->type){
                     case ast_number:
                         value_type = symbol_number;
+                        insert_symbol(scope_stack, variable_name_node->value.sval, &(value_node->value.ival), value_type);
                         break;
                     case ast_boolean:
                         value_type = symbol_boolean;
+                        insert_symbol(scope_stack, variable_name_node->value.sval, &(value_node->value.bval), value_type);
                         break;
                     case ast_function:
-                        value_type = symbol_function; // TODO: check if this would be handled here.
+                        value_type = symbol_function;
+                        // copy node and create a new function
+                        ASTNode* function_ids_node = clone_ast(value_node->left);
+                        ASTNode* function_body_node = clone_ast(value_node->right);
+
+                        // create a function structure
+                        Function* func = create_function(variable_name_node->value.sval, function_ids_node, function_body_node);
+
+                        // insert the function in the symbol table
+                        insert_symbol(scope_stack, variable_name_node->value.sval, func, value_type);
                         break;
                     default:
                         yyerror("Invalid value type!");
-                        exit(0);
                 }
-
-                // insert the variable in the symbol table
-                int value = value_node->value.ival; // Store the integer value in a local variable
-                insert_symbol(scope_stack, variable_name_node->value.sval, &value, value_type);
-
             }
             
             break;
@@ -669,28 +733,9 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
         /**
          * ----------------------------- Functions -----------------------------
          */
-        
-        case ast_function:
-            // create a function structure
-            // push the function in the symbol table
-            if(DEBUG_MODE){
-                printf("AST FUNCTION\n");
-            }
-
-            ASTNode* function_ids_node = clone_ast(node->left);
-            ASTNode* function_body_node = clone_ast(node->right);
-
-            // create a function structure
-            Function* func = create_function("", function_ids_node, function_body_node);
-
-            // insert the function in the symbol table
-            insert_symbol(scope_stack, func->name, func, symbol_function);
-
-            break;
-        
         case ast_function_call:
             if(DEBUG_MODE){
-                printf("AST FUNCTION CALL\n");
+                printf("AST FUNCTION CALL");
             }
 
             // the left of ast_function_call node is either a ast_function_exp or a ast_function_name
@@ -700,10 +745,12 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
             // the right of ast_function_exp is a ast_function_body
 
             if(node->left->type == ast_function){
-                if(DEBUG_MODE){
-                    /* print_ast_tree(node->left); */
-                }
                 // 1. anonymous function
+
+                if(DEBUG_MODE){
+                    printf(" - ANONYMOUS FUNCTION\n");
+                }
+
                 ASTNode* function_exp_node = clone_ast(node->left);
                 ASTNode* function_ids_node = clone_ast(function_exp_node->left);
                 ASTNode* function_body_node = clone_ast(function_exp_node->right);
@@ -724,12 +771,15 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
                     SymbolTable* new_scope_table = create_symbol_table(MAX_SYMBOL_TABLE_SIZE);
                     push_scope_stack(scope_stack, new_scope_table);
 
+                    // traverse the function parameters
+                    traverse_ast(node->right, node->type);
+
                     // bind the parameters to the scope
                     bind_parameters_to_scope(func->params, node->right, scope_stack, func->param_count);
+
                     // traverse the function body
-                    traverse_ast(function_body_node, ast_root, true);
-
-
+                    traverse_ast(function_body_node, function_body_node->type);
+                    
                     node->type = function_body_node->type;
                     node->value = function_body_node->value;                    
 
@@ -746,6 +796,58 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
                 }
             } else if(node->left->type == ast_id) { 
                 // 2. function with name
+
+                if(DEBUG_MODE){
+                    printf(" - FUNCTION WITH NAME: %s\n", node->left->value.sval);
+                }
+
+                // TODO: if the function call is inside the same function, it should not push a new scope
+
+                // get the function name
+                char* function_name = node->left->value.sval;
+
+                // get the function from the symbol table
+                SymbolEntry* func_entry = lookup_symbol(scope_stack, function_name);
+
+                if(func_entry != NULL && func_entry->type == symbol_function){
+                    Function* func = func_entry->func;
+                    ASTNode* function_body_node = func->body;
+
+                    // create a new symbol table for the function
+                    SymbolTable* new_scope_table = create_symbol_table(MAX_SYMBOL_TABLE_SIZE);
+                    push_scope_stack(scope_stack, new_scope_table);
+
+                    if(DEBUG_MODE && SCOPE_STACK_DEBUG_MODE){
+                        printf("PUSH SCOPE STACK\n");
+                        print_scope_stack(scope_stack);
+                    }
+
+                    // traverse the function parameters
+                    traverse_ast(node->right, node->type);
+
+                    // bind the parameters to the scope
+                    bind_parameters_to_scope(func->params, node->right, scope_stack, func->param_count);
+                   
+                    // traverse the function body
+                    traverse_ast(function_body_node, function_body_node->type);
+
+                    node->type = function_body_node->type;
+                    node->value = function_body_node->value;
+
+                    // pop the symbol table from the scope stack
+                    pop_scope_stack(scope_stack);
+
+                    if(DEBUG_MODE && SCOPE_STACK_DEBUG_MODE){
+                        printf("POP SCOPE STACK\n");
+                        print_scope_stack(scope_stack);
+                    }
+
+                    // free the symbol table
+                    free_symbol_table(new_scope_table);
+                } else {
+                    yyerror("Function not defined! In ast_function_call\n");
+                }
+
             } else {
                 yyerror("Invalid function call!");
             }
@@ -753,11 +855,12 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
             break;
         default:
             if(DEBUG_MODE){
-                /* printf("AST DEFAULT: %s\n", get_ast_type(node->type)); */
+                printf("AST DEFAULT CASE: %s\n", get_ast_type(node->type));
+                printf("AST TYPE: %s\n", get_ast_type(node->type));
             }
-            traverse_ast(node->left, node->type, is_in_function);
-            traverse_ast(node->right, node->type, is_in_function);
-            break;
+            traverse_ast(node->left, node->type);
+            traverse_ast(node->right, node->type);
+            break; 
     }
 }
 
@@ -771,6 +874,12 @@ void traverse_ast(ASTNode* node, ASTType prev_type, bool is_in_function){
 
 void handle_arithmetic_operation(ASTNode* node, ASTType operation) {
     if (node == NULL) return;
+
+    if(DEBUG_MODE){
+        printf("HANDLE ARITHMETIC OPERATION\n");
+        printf("OPERATION: %s\n", get_ast_type(operation));
+        printf("LEFT NODE TYPE: %s, RIGHT NODE TYPE: %s\n", get_ast_type(node->left->type), get_ast_type(node->right->type));
+    }
 
     ASTNode* left_node = (node->left->type == ast_id) ? get_ast_node_from_symbol(scope_stack, node->left->value.sval) : node->left;
     ASTNode* right_node = (node->right->type == ast_id) ? get_ast_node_from_symbol(scope_stack, node->right->value.sval) : node->right;
@@ -868,8 +977,9 @@ void general_type_checking(ASTNode* node, ASTType correct_type){
     // TODO: Now it works, but it is ugly. Might be refactor after the project is done
     if(correct_type == ast_id){
         if(actual_type != correct_type){
-            yyerror("Type error!");
-            exit(0);
+            char* error_message = (char*)malloc(sizeof(char) * 100);
+            sprintf(error_message, "Type Error: Expect '%s' but got '%s'", get_raw_data_type_from_ast_type(correct_type), get_raw_data_type_from_ast_type(actual_type));
+            yyerror(error_message);
         }
     } else {
         // if node->type is ast_id, convert the actual_type based on the symbol type
@@ -890,7 +1000,9 @@ void general_type_checking(ASTNode* node, ASTType correct_type){
         }
 
         if(actual_type != correct_type){
-            yyerror("Type error!");
+            char* error_message = (char*)malloc(sizeof(char) * 100);
+            sprintf(error_message, "Type Error: Expect '%s' but got '%s'", get_raw_data_type_from_ast_type(correct_type), get_raw_data_type_from_ast_type(actual_type));
+            yyerror(error_message);
         }
     }
 }
@@ -994,7 +1106,10 @@ ASTNode* get_ast_node_from_symbol(ScopeStack* stack, char* name){
                 break;
         }
     } else {
-        printf("name: %s\n", name);
+        if(DEBUG_MODE){
+            printf("name: %s\n", name);
+            print_scope_stack(stack);
+        }
         yyerror("Variable not defined! In get_ast_node_from_symbol\n");
     }
 
@@ -1133,10 +1248,21 @@ char* get_symbol_type(SymbolType type){
             return "NOT_FOUND_TYPE";
     }
 }
+char* get_raw_data_type_from_ast_type(ASTType type){
+    switch(type){
+        case ast_number:
+            return "number";
+        case ast_boolean:
+            return "boolean";
+        default:
+            return "NOT_FOUND_TYPE";
+    }
+}
 
 
 void print_symbol_table(SymbolTable* table){
     printf("========== SYMBOL TABLE ==========\n");
+    bool is_empty = true;
     for(int i = 0; i < table->size; i++){
         SymbolEntry* entry = table->table[i];
         while(entry != NULL){
@@ -1145,18 +1271,20 @@ void print_symbol_table(SymbolTable* table){
             printf("SYMBOL TYPE: %d\n", entry->type);
             printf("\n");
             entry = entry->next;
+            is_empty = false;
         }
     }
-    printf("==================================\n");
-
+    if(is_empty){
+        printf("EMPTY TABLE\n");
+    }
 }
 void print_scope_stack(ScopeStack* stack){
-    printf("========== SCOPE STACK ==========\n");
+    printf("\n========== SCOPE STACK ==========\n");
     for(int i = 0; i <= stack->top; i++){
         printf("SCOPE STACK INDEX: %d\n", i);
         print_symbol_table(stack->tables[i]);
     }
-    printf("==================================\n");
+    printf("==================================\n\n");
 
 }
 
@@ -1209,9 +1337,10 @@ int main(){
 
     yyparse();
 
-    traverse_ast(root, ast_root, false);
+    traverse_ast(root, ast_root);
 
     if(DEBUG_MODE){
+        printf("\nAFTER TRAVERSE AST\n");
         print_scope_stack(scope_stack);
     }
 
