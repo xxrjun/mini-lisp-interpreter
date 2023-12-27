@@ -12,7 +12,7 @@ digit [0-9]
 /* Token Definitions */
 /* Only tree types in LISP */
 numbers 0|[1-9]{digit}*|-[1-9]{digit}*
-id {letter}({letter}|{digit}|'-')*
+id {letter}({letter}|{digit}|-)*
 bool_val_t  #t
 bool_val_f  #f
 
