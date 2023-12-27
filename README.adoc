@@ -68,8 +68,8 @@ IMPORTANT: Features 1-4 must be finished before other features.
 |Variable Definition 
 |Able to define a variable        
 |8      
-|        
-|                        
+|✅
+|✅
 
 |Function
 |Able to declare and call an anonymous function
@@ -119,7 +119,6 @@ Public test case points : Hidden test case points = 80% : 20% (pass partial get 
 |                
 |=======================
 
-Public test case points : Hidden test case points = 0% : 100% (pass all get all)
 
 == Usage
 
@@ -141,11 +140,50 @@ Public test case points : Hidden test case points = 0% : 100% (pass all get all)
 
 === Run Test
 
+
+
+腳本功能
+
+* 編譯、執行測試、清空輸出檔
+* 統計通過以及失敗的測資數量
+* 失敗測資會顯示期望輸出以及實際輸出
+
+運行方式
+
 [source, bash]
 ----
 ./run_test.sh
 ----
 
+Sample Project Structure
+
+[source, bash]
+----
+.
+|
+|   run_tests.sh
+|
++---bin
+|       minilisp.exe
+|
++---src
+|       minilisp.l
+|       minilisp.y
+|
+\---tests
+    |   public_test_data_ans.txt
+    \---public_test_data
+----
+
+備註:
+
+* 01_1.lsp 以及 01_2.lsp 改成僅期望輸出 "syntax error"
+* 如果遇到 permission error  之類的問題可以嘗試修改腳本權限 
+
+[source, bash]
+----
+chmod +x run_tests.sh
+----
 
 == References
 
