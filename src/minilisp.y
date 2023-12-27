@@ -381,7 +381,7 @@ ASTNode* new_node_bool(bool bval, ASTNode* left, ASTNode* right){
 ASTNode* new_node_id(char* sval, ASTNode* left, ASTNode* right){
     if(DEBUG_MODE){
         printf("NEW NODE ID\n");
-        printf("NODE VALUE: %s\n", sval);
+        printf("NODE VALUE (Name): %s\n", sval);
     }
 
     ASTNode* node = (ASTNode*)malloc(sizeof(struct ASTNode));
@@ -392,11 +392,9 @@ ASTNode* new_node_id(char* sval, ASTNode* left, ASTNode* right){
 
     if(DEBUG_MODE){
         printf("NODE TYPE: %d\n", node->type);
-        printf("NODE VALUE: %s\n", node->value.sval);
     }
 
     return node;
-
 }
 
 void free_node(ASTNode* node){
@@ -930,19 +928,6 @@ SymbolTable* create_symbol_table(int size){
     return new_table;
 }
 
-/* SymbolEntry* lookup_symbol(SymbolTable* table, char* name){
-    unsigned int index = hash(name, table->size);
-    SymbolEntry* entry = table->table[index];
-    while(entry != NULL){
-        if(strcmp(entry->name, name) == 0){
-            return entry;
-        }
-        entry = entry->next; // collision
-    }
-    return NULL;
-} */
-
-
 SymbolEntry* lookup_symbol(ScopeStack* stack, char* name) {
     for (int i = stack->top; i >= 0; i--) {
         SymbolTable* table = stack->tables[i];
@@ -967,21 +952,10 @@ void insert_symbol(ScopeStack* stack, char* name, void* value, SymbolType type) 
     }
 
     SymbolTable* table = stack->tables[stack->top];
-    SymbolEntry* entry = lookup_symbol(stack, name);
-    if(entry != NULL){
-        if (type == symbol_function) {
-            entry->func = (Function*)value;
-        } else {
-            entry->value = *(int*)value;
-        }
-        entry->type = type;
-    }
-    else{
-        unsigned int index = hash(name, table->size);
-        SymbolEntry* new_entry = create_symbol_entry(name, value, type);
-        new_entry->next = table->table[index];
-        table->table[index] = new_entry;
-    }
+    unsigned int index = hash(name, table->size);
+    SymbolEntry* new_entry = create_symbol_entry(name, value, type);
+    new_entry->next = table->table[index];
+    table->table[index] = new_entry;
 }
 
 SymbolEntry* create_symbol_entry(char* name, void* value, SymbolType type){
@@ -996,31 +970,6 @@ SymbolEntry* create_symbol_entry(char* name, void* value, SymbolType type){
     entry->next = NULL;
     return entry;
 }
-
-
-/* void insert_symbol(ScopeStack* stack, char* name, int value, SymbolType type) {
-    SymbolTable* table = stack->tables[stack->top];
-    SymbolEntry* entry = lookup_symbol(stack, name);
-    if(entry != NULL){
-        entry->value = value;
-        entry->type = type;
-    }
-    else{
-        unsigned int index = hash(name, table->size);
-        SymbolEntry* new_entry = create_symbol_entry(name, value, type);
-        new_entry->next = table->table[index];
-        table->table[index] = new_entry;
-    }
-}
-
-SymbolEntry* create_symbol_entry(char* name, int value, SymbolType type){
-    SymbolEntry* entry = malloc(sizeof(SymbolEntry));
-    entry->name = strdup(name);
-    entry->value = value;
-    entry->type = type;
-    entry->next = NULL;
-    return entry;
-} */
 
 ASTNode* get_ast_node_from_symbol(ScopeStack* stack, char* name){
     SymbolTable* table = stack->tables[stack->top];
