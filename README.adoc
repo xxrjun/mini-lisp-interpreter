@@ -110,8 +110,8 @@ Public test case points : Hidden test case points = 80% : 20% (pass partial get 
 |Nested Function
 |Nested function
 |5
-|
-|
+|✅
+|✅
 
 |First-class Function
 |Able to pass functions, support closure

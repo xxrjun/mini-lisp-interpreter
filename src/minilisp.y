@@ -78,6 +78,7 @@
             ast_function_params,
             ast_function_name,
             ast_function_body,
+            ast_function_define_in_body,
 
             /** 
              * others
@@ -304,7 +305,8 @@ ids         : ID ids                            { $$ = new_node(ast_function_ids
             |                                   { $$ = NULL; }
             ;
 
-fun_body    : exp
+fun_body    : def_stmt fun_body                 { $$ = new_node(ast_function_define_in_body, $1, $2); }
+            | exp                        
             ;
 
 fun_call    : LPAREN fun_exp params RPAREN      { $$ = new_node(ast_function_call, $2, $3); }
@@ -434,7 +436,7 @@ Function* create_function(char* name, ASTNode* fun_ids, ASTNode* body){
     if(DEBUG_MODE){
         printf("CREATE FUNCTION\n");
         printf("FUNCTION NAME: %s\n", name);
-        printf("FUNCTION PARAMS: %s\n", fun_ids == NULL ? "NULL" : fun_ids->left->value.sval);
+        printf("FIRST FUNCTION PARAM: %s\n", fun_ids == NULL ? "NULL" : fun_ids->left->value.sval);
     }
 
     int param_count = 0;
@@ -535,8 +537,23 @@ void bind_parameters_to_scope(char** params, ASTNode* args, ScopeStack* stack, i
             } else if (current->left->type == ast_function){
                 insert_symbol(scope_stack, params[index++], &(current->left->value.sval), symbol_function);
             } else if (current->left->type == ast_id) {
-                // no need to insert the symbol to the scope, because it's (variable) already in the scope.
-                /* printf("AST ID: %s\n", current->left->value.sval); */
+                // get value from symbol table
+                ASTNode* tmp_node = get_ast_node_from_symbol(scope_stack, current->left->value.sval);
+                if(tmp_node != NULL){
+                    if(tmp_node->type == ast_number){
+                        insert_symbol(scope_stack, params[index++], &(tmp_node->value.ival), symbol_number);
+                    } else if(tmp_node->type == ast_boolean){
+                        insert_symbol(scope_stack, params[index++], &(tmp_node->value.bval), symbol_boolean);
+                    } else if(tmp_node->type == ast_function){
+                        insert_symbol(scope_stack, params[index++], &(tmp_node->value.sval), symbol_function);
+                    } else {
+                        yyerror("Invalid argument type!3");
+                    }
+                } else {
+                    char* error_message = (char*)malloc(sizeof(char) * 100);
+                    sprintf(error_message, "Variable not defined! In bind_parameters_to_scope. name: %s\n", current->left->value.sval);
+                    yyerror(error_message);
+                }
             } else {
                 yyerror("Invalid argument type!2");
             }
@@ -731,6 +748,17 @@ void traverse_ast(ASTNode* node, ASTType prev_type){
             
             break;
         
+        case ast_function_define_in_body:
+            if(DEBUG_MODE){
+                printf("AST FUNCTION DEFINE IN BODY\n");
+            }
+            traverse_ast(node->left, node->type);
+            traverse_ast(node->right, node->type);
+
+            node->type = node->right->type;
+            node->value = node->right->value;
+        
+            break;
         /**
          * ----------------------------- Functions -----------------------------
          */
@@ -802,8 +830,6 @@ void traverse_ast(ASTNode* node, ASTType prev_type){
                     printf(" - FUNCTION WITH NAME: %s\n", node->left->value.sval);
                 }
 
-                // TODO: if the function call is inside the same function, it should not push a new scope
-
                 // get the function name
                 char* function_name = node->left->value.sval;
 
@@ -825,6 +851,13 @@ void traverse_ast(ASTNode* node, ASTType prev_type){
 
                     // traverse the function parameters
                     traverse_ast(node->right, node->type);
+
+                    if(DEBUG_MODE){
+                        printf("node->right->left->type: %s\n", get_ast_type(node->right->left->type));
+                        if(get_ast_type(node->right->left->type) == "ast_id"){
+                            printf("node->right->left->value.sval: %s\n", node->right->left->value.sval);
+                        }
+                    }
 
                     // bind the parameters to the scope
                     bind_parameters_to_scope(func->params, node->right, scope_stack, func->param_count);
@@ -856,6 +889,8 @@ void traverse_ast(ASTNode* node, ASTType prev_type){
                     if(DEBUG_MODE){
                         printf("FUNCTION BODY TYPE: %s\n", get_ast_type(function_body_node->type));
                         printf("FUNCTION BODY VALUE: %d\n", function_body_node->value.ival);
+                        printf("NODE TYPE: %s\n", get_ast_type(node->type));
+                        printf("NODE VALUE: %d\n", node->value.ival);
                     }
 
                     // pop the symbol table from the scope stack
