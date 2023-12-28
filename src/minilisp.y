@@ -387,7 +387,7 @@ ASTNode* new_node_id(char* sval, ASTNode* left, ASTNode* right){
     }
 
     ASTNode* node = (ASTNode*)malloc(sizeof(struct ASTNode));
-    node->type = ast_id; 
+    node->type = ast_id;  // TODO: set boolean, number or function based on the symbol type here might be better
     node->value.sval = strdup(sval); // to prevent be affected by changes in the original string 
     node->left = left;
     node->right = right;
@@ -535,16 +535,8 @@ void bind_parameters_to_scope(char** params, ASTNode* args, ScopeStack* stack, i
             } else if (current->left->type == ast_function){
                 insert_symbol(scope_stack, params[index++], &(current->left->value.sval), symbol_function);
             } else if (current->left->type == ast_id) {
-                /* ASTNode* tmp_node = get_ast_node_from_symbol(scope_stack, current->left->value.sval);
-                if(tmp_node != NULL){
-                    current->type = tmp_node->type;
-                    current->value = tmp_node->value;
-                    free_node(tmp_node);
-                } else {
-                    char* error_message = (char*)malloc(sizeof(char) * 100);
-                    sprintf(error_message, "Variable not defined! In bind_parameters_to_scope. name: %s\n", current->left->value.sval);
-                    yyerror(error_message);
-                } */
+                // no need to insert the symbol to the scope, because it's (variable) already in the scope.
+                /* printf("AST ID: %s\n", current->left->value.sval); */
             } else {
                 yyerror("Invalid argument type!2");
             }
