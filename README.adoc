@@ -9,9 +9,9 @@ xxrjun <https://github.com/xxrjun>
 :url-repo: https://github.com/xxrjun/mini-lisp-interpreter
 :important-caption: :exclamation:
 
-[quote]
+[quote, NCU MIS 109403019]
 ____
-Final project for the Compilers course at National Central University, Fall 2019.
+Final project for the Compilers course at National Central University, Fall 2023.
 ____
 
 == Documents
@@ -31,13 +31,15 @@ ____
 IMPORTANT: Features 1-4 must be finished before other features.
 
 .Basic Features
-[options="header, valign="middle", cols="25%,60%,^5%,^5%,^5%"]
+[options="header, valign="middle", cols="25%,50%,^5%,^5%,^5%,^5%,^5%"]
 |=======================
-|Feature|Description|Points|Public1|Public2  
+|Feature|Description|Points|Public1|Public2|Hidden1|Hidden2
 
 |Syntax Validation
 |Print “syntax error” when parsing invalid syntax
 |10     
+|✅
+|✅
 |✅
 |✅
 
@@ -46,10 +48,14 @@ IMPORTANT: Features 1-4 must be finished before other features.
 |10     
 |✅
 |✅
+|✅
+|✅
 
 |Numerical Operations 
 |Implement all numerical operations
 |25     
+|✅
+|✅
 |✅
 |✅
 
@@ -58,16 +64,22 @@ IMPORTANT: Features 1-4 must be finished before other features.
 |25     
 |✅
 |✅        
+|✅
+|✅
 
 |if Expression        
 |Implement if expression
 |8      
 |✅
 |✅                      
+|✅
+|✅
 
 |Variable Definition 
 |Able to define a variable        
 |8      
+|✅
+|✅
 |✅
 |✅
 
@@ -76,10 +88,14 @@ IMPORTANT: Features 1-4 must be finished before other features.
 |8
 |✅
 |✅                        
+|✅
+|✅
 
 |Named Function
 |Able to declare and call a named function
 |6
+|✅
+|✅
 |✅
 |✅
 
@@ -90,21 +106,25 @@ Public test case points : Hidden test case points = 80% : 20% (pass partial get 
 === Bonus Features
 
 .Bonus Features
-[options="header, valign="middle", cols="25%,60%,^5%,^5%,^5%"]
+[options="header, valign="middle", cols="25%,50%,^5%,^5%,^5%,^5%,^5%"]
 |=======================
-|Feature |Description|Points |Public1 |Public2 
+|Feature|Description|Points|Public1|Public2|Hidden1|Hidden2 
 
 |Recursion
 |Support recursive function call
 |5
 |✅
 |✅                  
+|✅
+|✅
 
 |Type Checking
 |Print error messages for type errors
 |5
 |✅
 |✅                        
+|✅
+|✅
                
 
 |Nested Function
@@ -112,14 +132,17 @@ Public test case points : Hidden test case points = 80% : 20% (pass partial get 
 |5
 |✅
 |✅
+|✅
+|✅
 
 |First-class Function
 |Able to pass functions, support closure
 |5
-|
-|                
+|❌
+|❌
+|❌
+|❌               
 |=======================
-
 
 == Usage
 
