@@ -1,0 +1,82 @@
+01_1_hidden.lsp
+syntax error
+01_2_hidden.lsp
+syntax error
+02_1_hidden.lsp
+4
+3
+2
+1
+02_2_hidden.lsp
+654
+0
+-321
+03_1_hidden.lsp
+67
+3
+0
+-520
+03_2_hidden.lsp
+3
+0
+6
+04_1_hidden.lsp
+#f
+#t
+#f
+#t
+#t
+#f
+#t
+#f
+04_2_hidden.lsp
+#t
+#f
+#t
+05_1_hidden.lsp
+2
+1
+05_2_hidden.lsp
+30240
+2
+06_1_hidden.lsp
+8
+1
+06_2_hidden.lsp
+6
+07_1_hidden.lsp
+2
+1
+07_2_hidden.lsp
+0
+10
+08_1_hidden.lsp
+20
+08_2_hidden.lsp
+6
+b1_1_hidden.lsp
+39916800
+479001600
+1932053504
+1278945280
+1
+3
+8
+89
+10946
+b1_2_hidden.lsp
+5
+7
+55
+b2_1_hidden.lsp
+Type Error: Expect 'number' but got 'boolean'
+b2_2_hidden.lsp
+Type Error: Expect 'number' but got 'boolean'
+b3_1_hidden.lsp
+--- NO ANSWER YET. ---
+b3_2_hidden.lsp
+--- NO ANSWER YET. ---
+b4_1_hidden.lsp
+--- NO ANSWER YET. ---
+b4_2_hidden.lsp
+--- NO ANSWER YET. ---

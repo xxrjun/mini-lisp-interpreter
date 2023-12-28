@@ -69,9 +69,9 @@ b1_2.lsp
 2
 27
 b2_1.lsp
-Type error!
+Type Error: Expect 'number' but got 'boolean'
 b2_2.lsp
-Type error!
+Type Error: Expect 'number' but got 'boolean'
 b3_1.lsp
 25
 b3_2.lsp
