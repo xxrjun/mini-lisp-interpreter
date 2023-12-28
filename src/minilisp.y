@@ -13,8 +13,8 @@
     #define EXIT_WHEN_ERROR_IN_DEBUG_MODE 1
     
     #define HASH_NUMBER 5381
-    #define MAX_SYMBOL_TABLE_SIZE 100000
-    #define MAX_SCOPE_STACK_SIZE 1000000
+    #define MAX_SYMBOL_TABLE_SIZE 100
+    #define MAX_SCOPE_STACK_SIZE 100
 
     int yylex();
     void yyerror(const char* message);
