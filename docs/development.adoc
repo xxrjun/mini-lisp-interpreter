@@ -1,0 +1,50 @@
+= Mini-LISP Interpreter
+xxrjun <https://github.com/xxrjun>
+:icons: font
+:toc:
+:toclevels: 3
+:toc-title: 目錄
+:sectnums:
+:sectnumlevels: 5
+:source-highlighter: rouge
+:url-repo: https://github.com/xxrjun/mini-lisp-interpreter
+
+== 預計開發
+
+* 撰寫測試腳本
+* 撰寫 lex
+* 撰寫 yacc
+** Basic 1~4
+** Basic 5~6
+** Bonus 1~2
+** Bonus 3~4
+
+== Variable Definition
+
+----
+必須先了解 Symbol Table
+----
+
+
+* link:https://youtu.be/Dd3DWRpqI40[Symbol Table - Neso Academy] - Video
+* link:https://www.geeksforgeeks.org/symbol-table-compiler/[Symbol Table - GeeksforGeeks] - Article
+
+LISP 應該算是 block structured language。
+
+Properties
+
+* name  (char)
+* type  (ASTType)
+* scope (char)
+* value (union)
+
+Operations
+
+* insert: 插入變數
+* lookup: 查找變數
+* set: 設定變數
+* reset: 重設變數
+
+建立 Symbol Table
+
+* link:http://www.cse.yorku.ca/~oz/hash.html[Hash Function - djb2] - 使用的 hash function
